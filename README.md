@@ -1,6 +1,6 @@
 # MCP Dev Assistant - Go Implementation
 
-A lightweight **Model Context Protocol (MCP)** server in Go that acts as a bridge between AI models and real-world system operations. This server enables AI to safely interact with a developer's environment through structured tools, reducing context switching and making development faster and smarter.
+A lightweight **Model Context Protocol (MCP)** server in Go that acts as a bridge between AI models and real-world system operations. Includes an intelligent chatbot powered by **Groq's high-performance LLM API** for natural system queries.
 
 ## Features
 
@@ -10,6 +10,12 @@ A lightweight **Model Context Protocol (MCP)** server in Go that acts as a bridg
 - Process monitoring and port checking
 - System health checks (CPU, memory)
 - Log file retrieval
+
+🤖 **AI-Powered Chatbot**
+- Groq API integration for fast LLM responses
+- Natural language system queries
+- Automatic tool selection based on user intent
+- Real system data synthesis (no hallucinations)
 
 🔐 **Security First**
 - Configurable file access restrictions
@@ -85,31 +91,19 @@ go build -o bin/mcp-server ./cmd/server
 
 ### 🖥️ macOS/Linux Setup
 
-#### Step 1: Install Ollama (for the AI Chatbot)
+#### Step 1: Get Groq API Key
 
-**macOS:**
-```bash
-brew install ollama
-```
-
-**Linux:**
-```bash
-curl -fsSL https://ollama.ai/install.sh | sh
-```
-
-#### Step 2: Download a Text Generation Model
+1. Visit [console.groq.com](https://console.groq.com)
+2. Sign up or log in to your account
+3. Navigate to API Keys section
+4. Create a new API key
+5. Save it to `.env` file in the project root:
 
 ```bash
-# Recommended (fast, lightweight, good quality)
-ollama pull tinyllama
-
-# Or try these alternatives:
-ollama pull mistral       # Faster, better quality
-ollama pull neural-chat   # Optimized for conversations
-ollama pull llama2        # More capable
+echo 'GROQ_API_KEY=your_api_key_here' > .env
 ```
 
-#### Step 3: Clone and Build MCP Server
+#### Step 2: Clone and Build MCP Server
 
 ```bash
 # Clone the repository
@@ -123,34 +117,29 @@ go build -o bin/mcp-server ./cmd/server
 go build -o bin/chatbot ./cmd/chatbot
 ```
 
-#### Step 4: Start Services (3 Terminal Windows)
+#### Step 3: Start Services (2 Terminal Windows)
 
-**Terminal 1 - Start Ollama:**
-```bash
-ollama serve
-# Output: Listening on 127.0.0.1:11434
-```
-
-**Terminal 2 - Start MCP Server:**
+**Terminal 1 - Start MCP Server:**
 ```bash
 cd /path/to/mcp-go
 ./bin/mcp-server -port 9090
 # Output: [MCP Server] Listening on localhost:9090
 ```
 
-**Terminal 3 - Start Chatbot:**
+**Terminal 2 - Start Chatbot:**
 ```bash
 cd /path/to/mcp-go
-./bin/chatbot -model tinyllama
-# Chatbot ready for input!
+./bin/chatbot
+# 🤖 MCP System Chatbot - Powered by Groq API
+# ✅ Chatbot ready!
 ```
 
-#### Step 5: Try Example Queries
+#### Step 4: Try Example Queries
 
 ```
 You: What is my CPU usage?
 🤔 Thinking... 
-Bot: Your CPU is currently using 23% of available processing power...
+Bot: Your CPU usage is at 9.31%, which is relatively low and indicates your system has plenty of processing capacity available...
 
 You: Is port 8080 open?
 🤔 Thinking... 
@@ -158,7 +147,7 @@ Bot: Port 8080 is currently closed on your system...
 
 You: Check system health
 🤔 Thinking... 
-Bot: Your system is running well with good resource availability...
+Bot: The system is currently healthy with a CPU usage of 10.69% and memory usage at 59.52%...
 
 You: exit
 👋 Goodbye!
@@ -168,25 +157,21 @@ You: exit
 
 ### 🪟 Windows Setup
 
-#### Step 1: Install Ollama for Windows
+#### Step 1: Get Groq API Key
 
-1. Visit [ollama.ai](https://ollama.ai)
-2. Download the Windows installer
-3. Run the installer and follow the prompts
-4. Open Command Prompt or PowerShell
-
-#### Step 2: Download a Text Generation Model
+1. Visit [console.groq.com](https://console.groq.com)
+2. Sign up or log in
+3. Create API key in settings
+4. Create `.env` file in project root:
 
 ```powershell
-# Download model (choose one)
-ollama pull tinyllama
-
-# Or alternatives:
-ollama pull mistral
-ollama pull neural-chat
+# Create .env file with your API key
+@'
+GROQ_API_KEY=your_api_key_here
+'@ | Out-File -Encoding UTF8 .env
 ```
 
-#### Step 3: Install Go (if not already installed)
+#### Step 2: Install Go (if not already installed)
 
 1. Visit [golang.org](https://golang.org/dl)
 2. Download and run the Windows installer
@@ -195,11 +180,9 @@ ollama pull neural-chat
 go version
 ```
 
-#### Step 4: Clone and Build MCP Server
+#### Step 3: Clone and Build
 
 ```powershell
-# Open Command Prompt or PowerShell
-
 # Clone repository
 git clone https://github.com/amarjit-singh/mcp-go.git
 cd mcp-go
@@ -211,29 +194,24 @@ go build -o bin\mcp-server.exe .\cmd\server
 go build -o bin\chatbot.exe .\cmd\chatbot
 ```
 
-#### Step 5: Start Services (3 Command Prompts)
+#### Step 4: Start Services (2 Command Prompts)
 
-**Command Prompt 1 - Start Ollama:**
-```powershell
-ollama serve
-# Output: Listening on 127.0.0.1:11434
-```
-
-**Command Prompt 2 - Start MCP Server:**
+**Command Prompt 1 - Start MCP Server:**
 ```powershell
 cd C:\path\to\mcp-go
 .\bin\mcp-server.exe -port 9090
 # Output: [MCP Server] Listening on localhost:9090
 ```
 
-**Command Prompt 3 - Start Chatbot:**
+**Command Prompt 2 - Start Chatbot:**
 ```powershell
 cd C:\path\to\mcp-go
-.\bin\chatbot.exe -model tinyllama
-# Chatbot ready!
+.\bin\chatbot.exe
+# 🤖 MCP System Chatbot - Powered by Groq API
+# ✅ Chatbot ready!
 ```
 
-#### Step 6: Try Example Queries
+#### Step 5: Try Example Queries
 
 Same as macOS/Linux examples above.
 
@@ -277,11 +255,12 @@ See `examples/python_client.py` for a complete example.
 
 | Issue | Solution |
 |-------|----------|
-| "Ollama not available" | Make sure `ollama serve` is running in Terminal 1 |
-| "Cannot connect to MCP server" | Make sure `./bin/mcp-server` is running in Terminal 2 |
-| "Model not found" | Run `ollama pull tinyllama` first |
+| "Groq API not available" | Verify `GROQ_API_KEY` is set correctly in `.env` or environment |
+| "Cannot connect to MCP server" | Make sure `./bin/mcp-server` is running |
+| "model_decommissioned error" | Update to supported model: `./bin/chatbot -model llama-3.3-70b-versatile` |
 | "Port 9090 already in use" | Use different port: `./bin/mcp-server -port 8090` |
 | "Permission denied" on Linux | Run `chmod +x bin/mcp-server bin/chatbot` |
+| "No response from LLM" | Check internet connection and Groq API status |
 
 ---
 

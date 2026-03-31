@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/amarjit-singh/mcp-go/internal/llm"
@@ -12,7 +13,7 @@ import (
 
 // Chatbot represents the system chatbot
 type Chatbot struct {
-	llmClient           *llm.OllamaClient
+	llmClient           llm.LLMClient
 	mcpHost             string
 	mcpPort             string
 	model               string
@@ -26,12 +27,12 @@ type Message struct {
 }
 
 // NewChatbot creates a new chatbot instance
-func NewChatbot(ollamaURL, mcpAddr, modelName string) (*Chatbot, error) {
-	llmClient := llm.NewOllamaClient(ollamaURL)
+func NewChatbot(apiKey, mcpAddr, modelName string) (*Chatbot, error) {
+	llmClient := llm.NewGroqClient(apiKey)
 
-	// Check if Ollama is available
+	// Check if Groq API is available
 	if !llmClient.IsAvailable() {
-		return nil, fmt.Errorf("Ollama not available at %s", ollamaURL)
+		return nil, fmt.Errorf("Groq API not available - verify GROQ_API_KEY is valid")
 	}
 
 	// Get available models
@@ -41,24 +42,13 @@ func NewChatbot(ollamaURL, mcpAddr, modelName string) (*Chatbot, error) {
 	}
 
 	if len(models) == 0 {
-		return nil, fmt.Errorf("no models available. Install a text generation model with: ollama pull mistral")
+		return nil, fmt.Errorf("no models available from Groq API")
 	}
 
 	// Use specified model or first available
 	model := modelName
 	if model == "" {
 		model = models[0]
-	}
-
-	// Warn if using embedding model (doesn't support generation)
-	if isEmbeddingModel(model) {
-		fmt.Printf("⚠️  WARNING: '%s' is an embedding model and cannot generate text!\n", model)
-		fmt.Printf("Install a text generation model instead:\n")
-		fmt.Printf("  ollama pull mistral       (7B, fast, recommended)\n")
-		fmt.Printf("  ollama pull neural-chat   (7B, chat optimized)\n")
-		fmt.Printf("  ollama pull llama2        (7B, very capable)\n")
-		fmt.Printf("  ollama pull tinyllama     (1.1B, ultra-lightweight)\n")
-		return nil, fmt.Errorf("model '%s' does not support text generation", model)
 	}
 
 	parts := strings.Split(mcpAddr, ":")
@@ -89,15 +79,23 @@ func (cb *Chatbot) Chat(userMessage string) (string, error) {
 	// Create system prompt
 	systemPrompt := cb.buildSystemPrompt()
 
-	// Build prompt for LLM
+	// Build prompt for LLM with clear data separation
 	fullPrompt := fmt.Sprintf(`%s
 
-User Query: %s
+QUESTION: %s
 
-System Data:
+SYSTEM DATA:
 %s
 
-Your Response (be concise, 2-3 sentences):`, systemPrompt, userMessage, toolResults)
+INSTRUCTIONS:
+- Answer ONLY based on the system data provided
+- Do NOT repeat the system data or raw JSON
+- Provide a natural language response
+- Be specific with numbers and values
+- Keep response to 2-3 sentences maximum
+- Do NOT show JSON or raw data in your response
+
+ANSWER:`, systemPrompt, userMessage, toolResults)
 
 	// Get LLM response
 	llmResponse, err := cb.llmClient.Generate(fullPrompt, cb.model)
@@ -105,8 +103,24 @@ Your Response (be concise, 2-3 sentences):`, systemPrompt, userMessage, toolResu
 		return "", fmt.Errorf("LLM error: %w", err)
 	}
 
+	// DEBUG: Check what we got back
+	if llmResponse == "" {
+		fmt.Fprintf(os.Stderr, "[DEBUG] LLM returned empty response\n")
+	}
+
 	// Clean up response
 	finalAnswer := strings.TrimSpace(llmResponse)
+
+	// Remove any residual formatting that got included
+	finalAnswer = strings.TrimPrefix(finalAnswer, "ANSWER:")
+	finalAnswer = strings.TrimPrefix(finalAnswer, "ANSWER")
+	finalAnswer = strings.TrimSpace(finalAnswer)
+
+	// If response is empty or looks like it's still raw data, handle it
+	if finalAnswer == "" || strings.HasPrefix(finalAnswer, "[") {
+		// LLM failed to synthesize, provide a fallback
+		finalAnswer = "Unable to synthesize response from system data."
+	}
 
 	// Add assistant response to history
 	cb.conversationHistory = append(cb.conversationHistory, Message{
@@ -119,27 +133,52 @@ Your Response (be concise, 2-3 sentences):`, systemPrompt, userMessage, toolResu
 
 // buildSystemPrompt creates the system prompt
 func (cb *Chatbot) buildSystemPrompt() string {
-	return `You are a helpful Linux system assistant. You have real-time access to system metrics and can explain system status clearly. Be brief and technical.`
+	return `You are a precise Linux system information assistant.
+
+RULES:
+1. Use ONLY the system data provided in the SYSTEM DATA section
+2. Be concise - maximum 2-3 sentences
+3. Provide specific numbers, percentages, and values
+4. Do not speculate, hallucinate, or provide generic statements
+5. Answer the question directly based on actual system data
+6. If data is unavailable, say "Data not available" instead of guessing
+7. Format: [Observation] [Reason] [Action if needed]
+
+EXAMPLES:
+Q: What is my CPU usage?
+Data: CPU: 15.3%
+A: Your CPU usage is at 15.3%, which is low and indicates your system has plenty of processing capacity available.
+
+Q: Is port 8080 open?
+Data: Port 8080: CLOSED
+A: Port 8080 is currently closed - no service is listening on that port.`
 }
 
 // determineTools determines which MCP tools to use based on user query
 func (cb *Chatbot) determineTools(userMessage string) []string {
 	query := strings.ToLower(userMessage)
 	toolMap := map[string][]string{
-		"cpu":       {"get_cpu_usage"},
-		"processor": {"get_cpu_usage"},
-		"memory":    {"get_memory_usage"},
-		"ram":       {"get_memory_usage"},
-		"port":      {"check_port", "health_check"},
-		"running":   {"get_process_info", "health_check"},
-		"process":   {"get_process_info"},
-		"backend":   {"check_port", "health_check"},
-		"health":    {"health_check"},
-		"status":    {"health_check"},
-		"log":       {"read_logs"},
-		"error":     {"read_logs"},
-		"file":      {"read_file"},
-		"system":    {"health_check"},
+		"cpu":         {"get_cpu_usage"},
+		"processor":   {"get_cpu_usage"},
+		"usage":       {"get_cpu_usage", "get_memory_usage"},
+		"memory":      {"get_memory_usage"},
+		"ram":         {"get_memory_usage"},
+		"disk":        {"health_check"},
+		"port":        {"check_port"},
+		"running":     {"get_process_info"},
+		"process":     {"get_process_info"},
+		"service":     {"get_process_info"},
+		"backend":     {"check_port"},
+		"application": {"check_port", "get_process_info"},
+		"listen":      {"check_port"},
+		"open":        {"check_port"},
+		"health":      {"health_check"},
+		"status":      {"health_check"},
+		"system":      {"health_check"},
+		"log":         {"read_logs"},
+		"logs":        {"read_logs"},
+		"error":       {"read_logs"},
+		"file":        {"read_file"},
 	}
 
 	var tools []string
@@ -182,9 +221,10 @@ func (cb *Chatbot) executeMCPTools(tools []string) string {
 
 // callMCPTool calls an MCP tool via TCP
 func (cb *Chatbot) callMCPTool(toolName string) (string, error) {
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", cb.mcpHost, cb.mcpPort))
+	addr := net.JoinHostPort(cb.mcpHost, cb.mcpPort)
+	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		return "", fmt.Errorf("cannot connect to MCP server at %s:%s: %w", cb.mcpHost, cb.mcpPort, err)
+		return "", fmt.Errorf("cannot connect to MCP server at %s: %w", addr, err)
 	}
 	defer conn.Close()
 
@@ -248,16 +288,4 @@ func (cb *Chatbot) formatResult(result interface{}) string {
 
 	data, _ := json.MarshalIndent(result, "", "  ")
 	return string(data)
-}
-
-// isEmbeddingModel checks if a model is an embedding model (not a text generation model)
-func isEmbeddingModel(modelName string) bool {
-	embeddingModels := map[string]bool{
-		"mxbai-embed-large":      true,
-		"nomic-embed-text":       true,
-		"all-minilm":             true,
-		"all-minilm:v2":          true,
-		"snowflake-arctic-embed": true,
-	}
-	return embeddingModels[strings.Split(modelName, ":")[0]]
 }
