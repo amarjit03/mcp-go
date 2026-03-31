@@ -2,6 +2,28 @@
 
 A lightweight **Model Context Protocol (MCP)** server in Go that acts as a bridge between AI models and real-world system operations. Includes an intelligent chatbot powered by **Groq's high-performance LLM API** for natural system queries.
 
+> **💡 New!** Use the [MCP Go CLI](./docs/CLI.md) for easy setup and management. Get started in 2 minutes with `mcp-go init`!
+
+## Quick Start with CLI
+
+```bash
+# Clone and build
+git clone https://github.com/amarjit-singh/mcp-go.git
+cd mcp-go
+make build-cli
+
+# Interactive setup (takes ~1 minute)
+./bin/mcp-cli init
+
+# Start services
+./bin/mcp-cli start
+
+# View status
+./bin/mcp-cli status
+```
+
+For more details, see [CLI Quick Start](./CLI_QUICKSTART.md) or [Full CLI Documentation](./docs/CLI.md).
+
 ## Features
 
 ✨ **Safe System Access**
