@@ -1,0 +1,43 @@
+# MCP Server Configuration
+
+# Server network settings
+port: 9090
+host: 127.0.0.1
+
+# Server information
+name: mcp-dev-assistant
+version: 1.0.0
+
+# Execution settings
+commandTimeout: 30s
+fileReadMaxSize: 52428800  # 50MB
+commandMaxOutput: 10485760 # 10MB
+
+# Optional: Restrict access to specific paths
+# If empty, all paths are accessible (subject to security checks)
+allowedPaths: []
+  # - /home/user/projects
+  # - /var/log
+
+# Optional: Allow only specific commands
+# If empty, all commands are allowed (except denied list)
+allowedCommands: []
+  # - ls
+  # - cat
+  # - grep
+  # - ps
+  # - netstat
+  # - curl
+
+# Commands that are always denied (for safety)
+deniedCommands:
+  - rm
+  - rmdir
+  - mkfs
+  - dd
+  - format
+  - fdisk
+  - reboot
+  - shutdown
+  - halt
+  - poweroff
